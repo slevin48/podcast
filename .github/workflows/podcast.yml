@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Check out repo
+        uses: actions/checkout@v4
       
       # Sets up MATLAB on a GitHub-hosted runner
       - name: Set up MATLAB
@@ -19,7 +20,7 @@ jobs:
           products: >
             Text_Analytics_Toolbox
       # You can use "run-command" to execute custom MATLAB scripts, functions, or statements
-      - name: Run custom testing procedure
+      - name: Run MATLAB script
         uses: matlab-actions/run-command@v2
         with:
           command: disp('Running my task!'); dailytechtask;
