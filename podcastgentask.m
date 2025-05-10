@@ -50,7 +50,7 @@ function [text, response] = bot(prompt, temperature)
     if nargin < 3, temperature = 0; end
     
     % Load environment settings (if needed)
-    loadenv("../.env");
+    % loadenv("../.env");
     
     % Define the model name (as in our chap1 example)
     modelName = "gpt-4o-mini";
