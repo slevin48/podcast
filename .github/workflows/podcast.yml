@@ -12,25 +12,19 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check out repo
         uses: actions/checkout@v4
-      
       # Sets up MATLAB on a GitHub-hosted runner
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v2
         with:
           products: >
             Text_Analytics_Toolbox
-      # Sets up Python and dependencies
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-            python-version: '3.x'
       - name: Install Python dependencies
-        run: python -m pip install openai tiktoken
+        run: python3 -m pip install openai tiktoken
       # You can use "run-command" to execute custom MATLAB scripts, functions, or statements
       - name: Run MATLAB script
         uses: matlab-actions/run-command@v2
         with:
-          command: disp('Running my task!'); setup; pyenv; dailytechtask; podcastgentask;
+          command: disp('Running my task!'); setup; pyenv(Version="/usr/bin/python3"); dailytechtask; podcastgentask;
       # Save the result as artifact
       - name: Archive output data
         uses: actions/upload-artifact@v4
