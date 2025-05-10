@@ -19,7 +19,7 @@ jobs:
           products: >
             Text_Analytics_Toolbox
       - name: Install Python dependencies
-        run: python3 -m pip install openai tiktoken
+        run: python3 -m pip install openai
       # You can use "run-command" to execute custom MATLAB scripts, functions, or statements
       - name: Run MATLAB script
         uses: matlab-actions/run-command@v2
