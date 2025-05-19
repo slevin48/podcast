@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Artifact Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #24292e;
+            background-color: #f6f8fa;
+        }
+        h1 {
+            color: #24292e;
+            border-bottom: 1px solid #e1e4e8;
+            padding-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        input, button {
+            padding: 8px 12px;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+        }
+        button {
+            background-color: #2ea44f;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            width: fit-content;
+        }
+        button:hover {
+            background-color: #2c974b;
+        }
+        button:disabled {
+            background-color: #94d3a2;
+            cursor: not-allowed;
+        }
+        .card {
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            background-color: #f6f8fa;
+        }
+        .file-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .file-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        .file-icon {
+            margin-right: 8px;
+            color: #57606a;
+        }
+        .file-size {
+            color: #57606a;
+            font-size: 12px;
+        }
+        .file-content {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-content pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e1e4e8;
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 4px;
+        }
+        .tab.active {
+            background-color: #f6f8fa;
+            border-color: #e1e4e8;
+            color: #24292e;
+            font-weight: 600;
+        }
+        .error {
+            color: #d73a49;
+            margin-top: 10px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .loading::after {
+            content: "";
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e1e4e8;
+            border-top: 2px solid #2ea44f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            border-bottom: 1px dotted #24292e;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #24292e;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub Artifact Viewer</h1>
+    <div class="container">
+        <div class="card">
+            <div class="form-group">
+                <label for="owner">Repository Owner:</label>
+                <input type="text" id="owner" value="slevin48" placeholder="e.g., slevin48">
+            </div>
+            <div class="form-group">
+                <label for="repo">Repository Name:</label>
+                <input type="text" id="repo" value="podcast" placeholder="e.g., podcast">
+            </div>
+            <div class="form-group">
+                <label for="token">
+                    GitHub Token 
+                    <span class="tooltip">?
+                        <span class="tooltiptext">For private repositories, you need a personal access token with 'repo' and 'read:packages' scopes. For public repos, a token with 'public_repo' scope is sufficient.</span>
+                    </span>:
+                </label>
+                <input type="password" id="token" placeholder="Optional for public repositories">
+                <p style="margin-top: 4px; font-size: 12px; color: #6a737d;">
+                    GitHub requires authentication for accessing artifacts even in public repositories.
+                    <a href="https://github.com/settings/tokens" target="_blank">Create a token</a> with 'repo' scope.
+                </p>
+            </div>
+            <button id="fetchButton">Fetch Latest Artifact</button>
+            <div id="error" class="error hidden"></div>
+        </div>
+
+        <div id="loading" class="loading hidden"></div>
+        
+        <div id="artifactDetails" class="card hidden">
+            <h2>Artifact Details</h2>
+            <div id="artifactInfo"></div>
+            <div class="tabs">
+                <div class="tab active" data-tab="fileList">File List</div>
+                <div class="tab" data-tab="fileContent">File Content</div>
+            </div>
+            <div id="fileList" class="tab-content">
+                <ul class="file-list" id="fileListContent"></ul>
+            </div>
+            <div id="fileContent" class="tab-content hidden">
+                <div id="fileContentViewer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const fetchButton = document.getElementById('fetchButton');
+            const loadingElement = document.getElementById('loading');
+            const artifactDetailsElement = document.getElementById('artifactDetails');
+            const artifactInfoElement = document.getElementById('artifactInfo');
+            const fileListContentElement = document.getElementById('fileListContent');
+            const fileContentViewerElement = document.getElementById('fileContentViewer');
+            const errorElement = document.getElementById('error');
+            
+            // Initialize tabs
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.getAttribute('data-tab');
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Show/hide tab content
+                    tabContents.forEach(content => {
+                        if (content.id === tabName) {
+                            content.classList.remove('hidden');
+                        } else {
+                            content.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+            
+            // Store files in memory for viewing
+            let artifactFiles = {};
+            let currentFile = null;
+
+            fetchButton.addEventListener('click', async () => {
+                const owner = document.getElementById('owner').value.trim();
+                const repo = document.getElementById('repo').value.trim();
+                const token = document.getElementById('token').value.trim();
+                
+                if (!owner || !repo) {
+                    showError('Repository owner and name are required.');
+                    return;
+                }
+                
+                resetView();
+                showLoading(true);
+                
+                try {
+                    // Step 1: Check if we can access the repository
+                    const repoInfo = await checkRepository(owner, repo, token);
+                    
+                    // Step 2: Fetch the artifacts (direct approach)
+                    const artifacts = await fetchArtifacts(owner, repo, token);
+                    
+                    if (!artifacts || artifacts.length === 0) {
+                        throw new Error('No artifacts found for this repository. Make sure this repository has GitHub Actions with artifacts enabled.');
+                    }
+                    
+                    // Get the latest artifact
+                    const latestArtifact = artifacts[0];
+                    
+                    // Step 3: Download the artifact
+                    const artifactZip = await downloadArtifact(owner, repo, latestArtifact.id, token);
+                    
+                    // Step 4: Extract and display files
+                    await extractAndDisplayFiles(artifactZip, latestArtifact);
+                    
+                    showArtifactDetails(true);
+                    
+                } catch (error) {
+                    showError(error.message || 'Failed to fetch artifact.');
+                    console.error(error);
+                } finally {
+                    showLoading(false);
+                }
+            });
+            
+            async function checkRepository(owner, repo, token) {
+                const url = `https://api.github.com/repos/${owner}/${repo}`;
+                try {
+                    const response = await fetchFromGitHub(url, token);
+                    
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error(`Repository not found: ${owner}/${repo}. Make sure the repository exists and is spelled correctly.`);
+                        } else if (response.status === 403) {
+                            throw new Error(`Access denied to repository: ${owner}/${repo}. You might need a valid GitHub token.`);
+                        } else {
+                            const errorData = await response.json().catch(() => ({}));
+                            const message = errorData.message || response.statusText;
+                            throw new Error(`Failed to access repository: ${message} (${response.status})`);
+                        }
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error("Error checking repository:", error);
+                    throw new Error(`Failed to access repository: ${error.message}`);
+                }
+            }
+            
+            async function fetchWorkflowRuns(owner, repo, token) {
+                const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs`;
+                try {
+                    const response = await fetchFromGitHub(url, token);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const message = errorData.message || response.statusText;
+                        throw new Error(`Failed to fetch workflow runs: ${message} (${response.status})`);
+                    }
+                    
+                    const data = await response.json();
+                    return data.workflow_runs || [];
+                } catch (error) {
+                    console.error("Error fetching workflow runs:", error);
+                    throw new Error(`Failed to fetch workflow runs: ${error.message}`);
+                }
+            }
+            
+            async function fetchArtifacts(owner, repo, token) {
+                const url = `https://api.github.com/repos/${owner}/${repo}/actions/artifacts`;
+                try {
+                    const response = await fetchFromGitHub(url, token);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const message = errorData.message || response.statusText;
+                        throw new Error(`Failed to fetch artifacts: ${message} (${response.status})`);
+                    }
+                    
+                    const data = await response.json();
+                    return data.artifacts || [];
+                } catch (error) {
+                    console.error("Error fetching artifacts:", error);
+                    throw new Error(`Failed to fetch artifacts: ${error.message}`);
+                }
+            }
+            
+            async function downloadArtifact(owner, repo, artifactId, token) {
+                // First, try the direct download URL
+                const url = `https://api.github.com/repos/${owner}/${repo}/actions/artifacts/${artifactId}/zip`;
+                try {
+                    // Check if token is provided
+                    if (!token) {
+                        throw new Error(`GitHub requires authentication to download artifacts. Please provide a GitHub token with 'repo' scope.`);
+                    }
+                    
+                    const response = await fetchFromGitHub(url, token);
+                    
+                    if (!response.ok) {
+                        if (response.status === 410) {
+                            throw new Error(`Artifact has expired. GitHub artifacts expire after 90 days.`);
+                        } else if (response.status === 403) {
+                            throw new Error(`Access denied: You need a GitHub token with 'repo' scope to download artifacts.`);
+                        } else if (response.status === 404) {
+                            throw new Error(`Artifact not found or expired. GitHub artifacts expire after 90 days.`);
+                        } else {
+                            const errorData = await response.json().catch(() => ({}));
+                            const message = errorData.message || response.statusText;
+                            throw new Error(`Failed to download artifact: ${message} (${response.status})`);
+                        }
+                    }
+                    
+                    const blob = await response.blob();
+                    return await JSZip.loadAsync(blob);
+                } catch (error) {
+                    console.error("Error downloading artifact:", error);
+                    throw error;
+                }
+            }
+            
+            async function extractAndDisplayFiles(zip, artifact) {
+                artifactFiles = {};
+                fileListContentElement.innerHTML = '';
+                
+                // Display artifact info
+                artifactInfoElement.innerHTML = `
+                    <p><strong>Name:</strong> ${artifact.name}</p>
+                    <p><strong>ID:</strong> ${artifact.id}</p>
+                    <p><strong>Size:</strong> ${formatBytes(artifact.size_in_bytes)}</p>
+                    <p><strong>Created:</strong> ${new Date(artifact.created_at).toLocaleString()}</p>
+                    <p><strong>Expires:</strong> ${new Date(artifact.expired_at).toLocaleString()}</p>
+                `;
+                
+                // Process each file in the zip
+                const filePromises = [];
+                zip.forEach((relativePath, zipEntry) => {
+                    if (!zipEntry.dir) {
+                        const promise = processZipEntry(relativePath, zipEntry);
+                        filePromises.push(promise);
+                    }
+                });
+                
+                await Promise.all(filePromises);
+                
+                // Sort files by name
+                const sortedFiles = Object.keys(artifactFiles).sort();
+                
+                // Add files to the list
+                sortedFiles.forEach(filePath => {
+                    const file = artifactFiles[filePath];
+                    const fileItem = document.createElement('li');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <span>
+                            <span class="file-icon">📄</span>
+                            ${filePath}
+                        </span>
+                        <span class="file-size">${formatBytes(file.size)}</span>
+                    `;
+                    fileItem.addEventListener('click', () => {
+                        displayFileContent(filePath);
+                        
+                        // Switch to file content tab
+                        tabs.forEach(t => t.classList.remove('active'));
+                        document.querySelector('.tab[data-tab="fileContent"]').classList.add('active');
+                        
+                        tabContents.forEach(content => {
+                            if (content.id === 'fileContent') {
+                                content.classList.remove('hidden');
+                            } else {
+                                content.classList.add('hidden');
+                            }
+                        });
+                    });
+                    fileListContentElement.appendChild(fileItem);
+                });
+            }
+            
+            async function processZipEntry(relativePath, zipEntry) {
+                const content = await zipEntry.async('blob');
+                artifactFiles[relativePath] = {
+                    content: content,
+                    size: zipEntry._data.uncompressedSize
+                };
+            }
+            
+            function displayFileContent(filePath) {
+                currentFile = filePath;
+                const file = artifactFiles[filePath];
+                fileContentViewerElement.innerHTML = '';
+                
+                const fileExtension = filePath.split('.').pop().toLowerCase();
+                
+                // Create content display
+                const contentContainer = document.createElement('div');
+                contentContainer.className = 'file-content';
+                
+                const header = document.createElement('h3');
+                header.textContent = filePath;
+                fileContentViewerElement.appendChild(header);
+                
+                // Determine if text or binary
+                if (isTextFile(fileExtension)) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        const pre = document.createElement('pre');
+                        pre.textContent = content;
+                        contentContainer.appendChild(pre);
+                    };
+                    reader.readAsText(file.content);
+                } else {
+                    const binaryMessage = document.createElement('p');
+                    binaryMessage.textContent = 'Binary file. Download to view.';
+                    contentContainer.appendChild(binaryMessage);
+                }
+                
+                // Add download button
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = 'Download File';
+                downloadBtn.style.marginTop = '10px';
+                downloadBtn.addEventListener('click', () => {
+                    downloadFile(filePath, file.content);
+                });
+                
+                fileContentViewerElement.appendChild(contentContainer);
+                fileContentViewerElement.appendChild(downloadBtn);
+            }
+            
+            function downloadFile(filename, blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            
+            function fetchFromGitHub(url, token) {
+                const headers = {
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `token ${token}`;
+                }
+                
+                return fetch(url, { 
+                    headers,
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+            }
+            
+            function formatBytes(bytes, decimals = 2) {
+                if (bytes === 0) return '0 Bytes';
+                
+                const k = 1024;
+                const dm = decimals < 0 ? 0 : decimals;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+            }
+            
+            function isTextFile(extension) {
+                const textExtensions = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'xml', 'yml', 'yaml', 'csv', 'py', 'sh', 'bat', 'ps1', 'log'];
+                return textExtensions.includes(extension);
+            }
+            
+            function resetView() {
+                errorElement.classList.add('hidden');
+                errorElement.textContent = '';
+                showArtifactDetails(false);
+            }
+            
+            function showError(message) {
+                errorElement.textContent = message;
+                errorElement.classList.remove('hidden');
+            }
+            
+            function showLoading(isLoading) {
+                if (isLoading) {
+                    loadingElement.classList.remove('hidden');
+                    fetchButton.disabled = true;
+                } else {
+                    loadingElement.classList.add('hidden');
+                    fetchButton.disabled = false;
+                }
+            }
+            
+            function showArtifactDetails(show) {
+                if (show) {
+                    artifactDetailsElement.classList.remove('hidden');
+                } else {
+                    artifactDetailsElement.classList.add('hidden');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
